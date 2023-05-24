@@ -1,0 +1,217 @@
+<html>
+
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+</head>
+
+<body>
+    <script type="importmap">
+                {
+                    "imports": {
+                        "three": "../build/three.module.js",
+                        "three/addons/": "../jsm/"
+                    }
+                }
+            </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import {
+            Box3,
+            Material,
+            Mesh,
+            MeshPhongMaterial,
+            Sphere,
+            SphereGeometry,
+            Vector3,
+        } from "three";
+        import Stats from 'three/addons/libs/stats.module.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+        let mixer = THREE.AnimationMixer
+        const clock = new THREE.Clock();
+        let M =
+            [
+                [1, 0, 1, 0, 1, 0, 1, 0],
+                [0, 1, 0, 1, 0, 1, 0, 1],
+                [1, 0, 1, 0, 1, 0, 1, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 3, 0, 3, 0, 3, 0, 3],
+                [3, 0, 3, 0, 3, 0, 3, 0],
+                [0, 3, 0, 3, 0, 3, 0, 3]
+            ];
+        let keyCode =
+        {
+            ENTER: 11,
+            LEFT_ARROw: 37,
+            UP_ARROW: 38,
+            RIGHT_ARROw: 39,
+            DOWN_ARROW: 40
+        }
+        let estado =
+        {
+            PARADO: 1,
+            CAMINANDO: 2,
+            GIRANDO: 3
+        }
+        const tentativas = new THREE.Group();
+        let turno = 1;
+        let bestia;
+        let esfera;
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xBFD1E5)
+        const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 1000);
+        //var wolfBB = new THREE.box3().setFromObjet(bestia); -->
+
+        const bulletGeometry = new SphereGeometry(10);
+
+        const bulletMaterial = new MeshPhongMaterial({ color: 0x262626 });
+        var sphere = new Mesh(bulletGeometry, bulletMaterial);
+        sphere.position.set(
+            -6,
+            3,
+            1
+        );
+
+        camera.position.set(0, 90, 150)
+        camera.lookAt(new THREE.Vector3(0, 0, 0))
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio)
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true
+        document.body.appendChild(renderer.domElement);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight)
+        }
+        window.addEventListener('resize', onWindowResize)
+        const raycaster = new THREE.Raycaster();
+        const clicMouse = new THREE.Vector2();
+        const moveMouse = new THREE.Vector2();
+        var draggable = new THREE.Object3D;
+        const color = 0xFFFFFF;
+        const light = new THREE.AmbientLight(color, 0.20);
+        scene.add(light)
+        const directionalLigth = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLigth.position.set(-30, 50, -30);
+        scene.add(directionalLigth);
+        directionalLigth.castShadow = true
+        directionalLigth.shadow.mapSize.width = 2048
+        directionalLigth.shadow.mapSize.height = 2048
+        directionalLigth.shadow.camera.left = -70
+        directionalLigth.shadow.camera.right = 70
+        directionalLigth.shadow.camera.top = 70
+        directionalLigth.shadow.camera.bottom = -70
+        const tablero = new THREE.Group()
+        for (let z = 0; z < 8; z++) {
+            for (let x = 0; x < 8; x++) {
+                if ((z + x) % 2 == 1) {
+                    tablero.add(crearCuboBlanco(40 - 10 * x, 0.5, -40 + 10 * z))
+
+                }
+
+
+                else
+                    tablero.add(crearCuboNegro(40 - 10 * x, 0.5, -40 + 10 * z))
+            }
+        }
+        scene.add(sphere);
+        scene.add(tablero);
+        cargarModeloFbx();
+        const controls = new OrbitControls(camera, renderer.domElement)
+        controls.enableDamping = true;
+        controls.zoomSpeed = 5;
+        scene.rotateY(90 * Math.PI / 180)
+
+
+        renderer.render(scene, camera);
+
+        function animate() {
+            requestAnimationFrame(animate)
+            const delta = clock.getDelta();
+            //    if ( mixer ) 
+            //    mixer.update( delta );
+
+            controls.update();
+            renderer.render(scene, camera)
+        }
+        animate()
+        function crearCuboBlanco(X, Y, Z) {
+            let pos = { x: X, y: Y, z: Z }
+            let box = new THREE.Mesh(new THREE.BoxGeometry(10, 1, 10), new THREE.MeshPhongMaterial({ color: 0xFFFFFF }))
+            box.position.set(pos.x, pos.y, pos.z)
+            box.castShadow = true
+            box.receiveShadow = true
+            return box;
+
+        }
+        function cargarModeloFbx() {
+            const fbxLoader = new FBXLoader()
+            fbxLoader.load('modelos/Wolf_With_Baked_Action_Animations_For_Export.fbx',
+                (obj) => {
+                    bestia = obj;
+                    obj.position.set(-11, 1, -21)
+                    obj.scale.setScalar(0.05)
+                    console.log(obj)
+                    mixer = new THREE.AnimationMixer(obj);
+                    const action = mixer.clipAction(obj.animations[5]);
+                    //action.play();
+                    obj.traverse(function (child) {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                        }
+                    });
+
+                    scene.add(obj);
+                },
+                (xhr) => {
+                    console.log(`${(xhr.loaded / xhr.total * 100)}% loaded`);
+                },
+                (error) => {
+                    console.error('An error happened', error);
+                },
+            );
+        }
+        function teclado(e) {
+            var key = e.keyCode ? e.keyCode : e.which;
+            //var collision = bestia.intersectsBox(sphere);
+            //console.log(collision);
+            console.log(e)
+            if (keyCode.RIGHT_ARROw == key) {
+
+                //bestia.rotation.y = 35 * Math.PI / 180
+                //bestia.position.x += 1
+                bestia.position.z += 1
+
+            }
+            if (keyCode.LEFT_ARROw == key) {
+                bestia.position.z -= 1
+            }
+            if (keyCode.UP_ARROW == key) {
+                bestia.rotation.y -= 5 * Math.PI / 180
+                //console.log("Izquierda");
+            }
+            if (keyCode.DOWN_ARROW == key) {
+                bestia.rotation.y += 5 * Math.PI / 180;
+
+            }
+        }
+        window.addEventListener('keydown', teclado);
+
+        function crearCuboNegro(X, Y, Z) {
+            let pos = { x: X, y: Y, z: Z }
+            let box = new THREE.Mesh(new THREE.BoxGeometry(10, 1, 10), new THREE.MeshPhongMaterial({ color: 0x000000 }))
+            box.position.set(pos.x, pos.y, pos.z)
+            box.castShadow = true
+            box.receiveShadow = true
+            scene.add(box);
+            box.userData['draggable'] = true;
+            box.userData['name'] = 'BOX';
+            return box;
+        }       
+    </script>
+</body>
+
+</html>
